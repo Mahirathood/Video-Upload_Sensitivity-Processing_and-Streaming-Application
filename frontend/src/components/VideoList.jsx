@@ -102,7 +102,7 @@ const VideoList = () => {
       <div className="video-list-header">
         <h2>My Videos</h2>
         <button onClick={fetchVideos} className="btn-refresh">
-          🔄 Refresh
+          Refresh
         </button>
       </div>
 
@@ -146,7 +146,7 @@ const VideoList = () => {
           {videos.map((video) => (
             <div key={video._id} className="video-card">
               <div className="video-thumbnail">
-                🎬
+                VIDEO
               </div>
               <div className="video-info">
                 <h3>{video.metadata.title}</h3>
@@ -155,8 +155,8 @@ const VideoList = () => {
                 </p>
                 
                 <div className="video-meta">
-                  <span>📁 {formatFileSize(video.fileSize)}</span>
-                  <span>📅 {formatDate(video.uploadedAt)}</span>
+                  <span>Size: {formatFileSize(video.fileSize)}</span>
+                  <span>Date: {formatDate(video.uploadedAt)}</span>
                 </div>
 
                 <div className="video-badges">
@@ -191,14 +191,14 @@ const VideoList = () => {
                       onClick={() => handlePlay(video)}
                       className="btn-play"
                     >
-                      ▶ Play
+                      Play
                     </button>
                   )}
                   <button 
                     onClick={() => handleDelete(video._id)}
                     className="btn-delete"
                   >
-                    🗑 Delete
+                    Delete
                   </button>
                 </div>
               </div>

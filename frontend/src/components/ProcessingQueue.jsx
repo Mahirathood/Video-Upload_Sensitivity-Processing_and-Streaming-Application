@@ -85,14 +85,14 @@ const ProcessingQueue = () => {
         <div className="loading">Loading...</div>
       ) : activeProcessing.length === 0 ? (
         <div className="no-processing">
-          <p>✅ No videos currently processing</p>
+          <p>No videos currently processing</p>
           <p className="subtitle">All your videos have been processed!</p>
         </div>
       ) : (
         <div className="processing-list">
           {activeProcessing.map((videoItem) => (
             <div key={videoItem._id} className="processing-item">
-              <div className="item-icon">⚙️</div>
+              <div className="item-icon">PROC</div>
               <div className="item-info">
                 <h4>{videoItem.metadata.title}</h4>
                 <p className="item-filename">{videoItem.originalName}</p>
@@ -109,8 +109,8 @@ const ProcessingQueue = () => {
                   </div>
                 </div>
                 <div className="item-meta">
-                  <span>📁 {(videoItem.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
-                  <span>⏱️ Processing sensitivity analysis...</span>
+                  <span>Size: {(videoItem.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
+                  <span>Status: Processing sensitivity analysis...</span>
                 </div>
               </div>
             </div>

@@ -1,33 +1,33 @@
-# 🎬 Video Streaming Platform
+# Video Streaming Platform
 
 A full-stack video upload, processing, and streaming application with real-time updates and role-based access control.
 
-## 🌐 Live Demo
+## Live Demo
 
 **Frontend:** https://68fc218b9d3a1c76a9267ce5--genuine-crumble-5d7df2.netlify.app/
 **Backend API:** https://video-streaming-backend-7vwr.onrender.com
 
-## ✨ Features
+## Features
 
-- 🎥 Video upload with progress tracking
-- 🔍 Automated sensitivity analysis (safe/flagged detection)
-- ⚡ Real-time processing updates via Socket.io
-- 📺 Video streaming with HTTP range requests
-- 🔐 JWT authentication & role-based access (Viewer, Editor, Admin)
-- 🏢 Multi-tenant architecture with organization isolation
+- Video upload with progress tracking
+- Automated sensitivity analysis (safe/flagged detection)
+- Real-time processing updates via Socket.io
+- Video streaming with HTTP range requests
+- JWT authentication & role-based access (Viewer, Editor, Admin)
+- Multi-tenant architecture with organization isolation
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 **Backend:** Node.js, Express, MongoDB, Socket.io, JWT, Multer  
 **Frontend:** React, Vite, React Router, Axios, Socket.io Client
 
-## 📋 Prerequisites
+## Prerequisites
 
 - Node.js (v16+)
 - MongoDB (v4.4+)
 - FFmpeg ([Download here](https://ffmpeg.org/download.html))
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone & Install
 ```bash
@@ -77,7 +77,7 @@ npm run dev
 
 **Access:** Frontend at `http://localhost:5173`
 
-## 📖 How to Use
+## How to Use
 
 1. **Register/Login** - Create account with role (Viewer/Editor/Admin)
 2. **Upload Video** - Select video, add title/description/tags (Editor/Admin only)
@@ -85,7 +85,7 @@ npm run dev
 4. **View & Stream** - Browse videos with filters, play with full controls
 5. **Manage** - Update or delete your videos (Editor/Admin)
 
-## 🔌 API Endpoints
+## API Endpoints
 
 **Auth:**
 - `POST /api/auth/register` - Register new user
@@ -106,7 +106,7 @@ npm run dev
 - `video:completed` - Processing completed
 - `video:failed` - Processing failed
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 full_stack_assignment/
@@ -128,7 +128,7 @@ full_stack_assignment/
     └── vite.config.js
 ```
 
-## 🚀 Deployment
+## Deployment
 
 **Backend (Render):** https://video-streaming-backend-7vwr.onrender.com  
 **Frontend (Netlify):** https://68fc218b9d3a1c76a9267ce5--genuine-crumble-5d7df2.netlify.app
@@ -149,14 +149,14 @@ full_stack_assignment/
 4. Publish directory: `dist`
 5. Add environment variables (VITE_API_URL, VITE_SOCKET_URL)
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 - **MongoDB Error:** Ensure MongoDB is running
 - **FFmpeg Not Found:** Install FFmpeg and add to PATH
 - **CORS Error:** Match FRONTEND_URL in backend with actual frontend URL
 - **Port in Use:** Change PORT in .env or kill existing process
 
-## 📄 License
+## License
 
 ISC License - Created for Full-Stack Development Assignment
 
