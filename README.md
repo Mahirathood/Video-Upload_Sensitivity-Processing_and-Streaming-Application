@@ -126,18 +126,6 @@ full_stack_assignment/
     └── vite.config.js
 ```
 
-**Backend (Render):** https://video-streaming-backend-7vwr.onrender.com/api/health
-**Frontend (Netlify):** https://68fc218b9d3a1c76a9267ce5--genuine-crumble-5d7df2.netlify.app
->>>>>>> cd6c3a0ad6145550fa3f731162c8b1de2085636a
-## Deployment
-
-**Backend (Render):** https://video-streaming-backend-7vwr.onrender.com  
-**Frontend (Vercel):** https://video-upload-sensitivity-processing.vercel.app
-=======
-**Backend (Render):** https://video-streaming-backend-7vwr.onrender.com/api/health
-**Frontend (Netlify):** https://68fc218b9d3a1c76a9267ce5--genuine-crumble-5d7df2.netlify.app
->>>>>>> cd6c3a0ad6145550fa3f731162c8b1de2085636a
-
 ### Deploy Your Own
 
 **Backend on Render:**
@@ -147,7 +135,7 @@ full_stack_assignment/
 4. Start command: `npm start`
 5. Add environment variables (MONGODB_URI, JWT_SECRET, FRONTEND_URL, etc.)
 
-**Frontend on Netlify:**
+**Frontend on Vercel:**
 1. Connect GitHub repo
 2. Base directory: `frontend`
 3. Build command: `npm run build`
