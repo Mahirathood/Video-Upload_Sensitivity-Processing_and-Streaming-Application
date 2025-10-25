@@ -130,7 +130,7 @@ full_stack_assignment/
 
 ## Deployment
 
-**Backend (Render):** https://video-streaming-backend-7vwr.onrender.com  
+**Backend (Render):** https://video-streaming-backend-7vwr.onrender.com/api/health
 **Frontend (Netlify):** https://68fc218b9d3a1c76a9267ce5--genuine-crumble-5d7df2.netlify.app
 
 ### Deploy Your Own
