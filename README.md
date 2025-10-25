@@ -5,7 +5,7 @@ A full-stack video upload, processing, and streaming application with real-time 
 ## Live Demo
 
 **Frontend:** https://68fc218b9d3a1c76a9267ce5--genuine-crumble-5d7df2.netlify.app/
-**Backend API:** https://video-streaming-backend-7vwr.onrender.com
+**Backend API:** https://video-streaming-backend-7vwr.onrender.com/api/health
 
 ## Features
 
