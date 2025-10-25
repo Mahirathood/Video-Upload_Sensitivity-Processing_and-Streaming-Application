@@ -3,7 +3,7 @@
 A full-stack video upload, processing, and streaming application with real-time updates and role-based access control.
 
 **Frontend:** https://video-upload-sensitivity-processing.vercel.app
-**Backend API:** https://video-streaming-backend-7vwr.onrender.com/api/health
+**Backend API:** https://video-streaming-backend-7vwr.onrender.com
 
 ## Features
 
