@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const videoSchema = new mongoose.Schema({
+const videoDocumentSchema = new mongoose.Schema({
   filename: {
     type: String,
     required: true
@@ -81,9 +81,9 @@ const videoSchema = new mongoose.Schema({
   }
 });
 
-// Index for efficient queries
-videoSchema.index({ owner: 1, organization: 1 });
-videoSchema.index({ status: 1 });
-videoSchema.index({ sensitivityStatus: 1 });
+// Create database indexes for query optimization
+videoDocumentSchema.index({ owner: 1, organization: 1 });
+videoDocumentSchema.index({ status: 1 });
+videoDocumentSchema.index({ sensitivityStatus: 1 });
 
-module.exports = mongoose.model('Video', videoSchema);
+module.exports = mongoose.model('Video', videoDocumentSchema);

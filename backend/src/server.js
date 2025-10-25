@@ -1,130 +1,136 @@
+// Load environment configuration
 require('dotenv').config();
+
+// Core dependencies
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
-const { Server } = require('socket.io');
+const { Server: SocketServer } = require('socket.io');
 const jwt = require('jsonwebtoken');
 
-// Import routes
-const authRoutes = require('./routes/auth');
-const videoRoutes = require('./routes/videos');
+// Application routes
+const authenticationRoutes = require('./routes/auth');
+const videoManagementRoutes = require('./routes/videos');
 
-// Initialize Express app
-const app = express();
-const server = http.createServer(app);
+// Application initialization
+const application = express();
+const httpServer = http.createServer(application);
 
-// Configure Socket.io with CORS
-const io = new Server(server, {
+// WebSocket server configuration
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+const socketIO = new SocketServer(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: allowedOrigin,
     methods: ['GET', 'POST'],
     credentials: true
   }
 });
 
-// Middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+// Configure middleware stack
+application.use(cors({
+  origin: allowedOrigin,
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+application.use(express.json());
+application.use(express.urlencoded({ extended: true }));
 
-// Make io available to routes
-app.io = io;
+// Inject socket instance into application
+application.socketIO = socketIO;
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/videos', videoRoutes);
+// API endpoint routing
+application.use('/api/auth', authenticationRoutes);
+application.use('/api/videos', videoManagementRoutes);
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
+// Server health monitoring endpoint
+application.get('/api/health', (request, response) => {
+  response.json({ status: 'OK', message: 'Server is running' });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
+// Global error handler
+application.use((error, request, response, next) => {
+  console.error('Application Error:', error);
   
-  if (err.name === 'MulterError') {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'File size too large' });
+  // Handle file upload errors
+  if (error.name === 'MulterError') {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return response.status(400).json({ error: 'File size exceeds maximum limit' });
     }
-    return res.status(400).json({ error: err.message });
+    return response.status(400).json({ error: error.message });
   }
   
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal server error'
+  // Generic error response
+  response.status(error.status || 500).json({
+    error: error.message || 'Internal server error'
   });
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
+// Handle undefined routes
+application.use((request, response) => {
+  response.status(404).json({ error: 'Requested route not found' });
 });
 
-// Socket.io authentication middleware
-io.use((socket, next) => {
-  const token = socket.handshake.auth.token;
+// WebSocket authentication layer
+socketIO.use((clientSocket, next) => {
+  const authToken = clientSocket.handshake.auth.token;
   
-  if (!token) {
-    return next(new Error('Authentication error'));
+  if (!authToken) {
+    return next(new Error('Authentication required'));
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    socket.userId = decoded.userId;
+    const decodedPayload = jwt.verify(authToken, process.env.JWT_SECRET);
+    clientSocket.authenticatedUserId = decodedPayload.userId;
     next();
-  } catch (error) {
-    next(new Error('Authentication error'));
+  } catch (verificationError) {
+    next(new Error('Invalid authentication credentials'));
   }
 });
 
-// Socket.io connection handling
-io.on('connection', (socket) => {
-  console.log('Client connected:', socket.userId);
+// WebSocket connection management
+socketIO.on('connection', (clientSocket) => {
+  console.log('WebSocket client connected:', clientSocket.authenticatedUserId);
   
-  // Join user's personal room for targeted updates
-  socket.join(socket.userId);
+  // Create dedicated channel for user-specific broadcasts
+  clientSocket.join(clientSocket.authenticatedUserId);
   
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.userId);
+  clientSocket.on('disconnect', () => {
+    console.log('WebSocket client disconnected:', clientSocket.authenticatedUserId);
   });
 });
 
-// Database connection
+// Establish database connectivity
 mongoose.connect(process.env.MONGODB_URI)
 .then(() => {
-  console.log('Connected to MongoDB');
+  console.log('Successfully connected to MongoDB database');
   
-  // Start server
-  const PORT = process.env.PORT || 5000;
-  server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  // Initialize HTTP server
+  const serverPort = process.env.PORT || 5000;
+  httpServer.listen(serverPort, () => {
+    console.log(`Application server listening on port ${serverPort}`);
   });
 })
-.catch((error) => {
-  console.error('MongoDB connection error:', error);
-  console.log('Please make sure MongoDB is running on your system');
-  console.log('Starting server without database connection...');
+.catch((connectionError) => {
+  console.error('Database connection failed:', connectionError);
+  console.log('Verify MongoDB service is running');
+  console.log('Proceeding without database connectivity...');
   
-  // Start server anyway for development
-  const PORT = process.env.PORT || 5000;
-  server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT} (without database)`);
+  // Fallback server startup for development
+  const serverPort = process.env.PORT || 5000;
+  httpServer.listen(serverPort, () => {
+    console.log(`Server active on port ${serverPort} (database unavailable)`);
   });
 });
 
-// Graceful shutdown
+// Handle graceful shutdown signals
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
+  console.log('Shutdown signal received, closing connections gracefully');
+  httpServer.close(() => {
     mongoose.connection.close(false, () => {
-      console.log('Server closed');
+      console.log('All connections closed successfully');
       process.exit(0);
     });
   });
 });
 
-module.exports = { app, server, io };
+module.exports = { app: application, server: httpServer, io: socketIO };

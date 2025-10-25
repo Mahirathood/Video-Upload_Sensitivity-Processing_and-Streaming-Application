@@ -4,68 +4,68 @@ import socketService from '../services/socketService';
 import './ProcessingQueue.css';
 
 const ProcessingQueue = () => {
-  const [processingVideos, setProcessingVideos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [activeProcessing, setActiveProcessing] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchProcessingVideos();
+    loadProcessingVideos();
 
-    // Listen for real-time updates
-    socketService.on('video:uploaded', handleVideoUploaded);
-    socketService.on('video:progress', handleVideoProgress);
-    socketService.on('video:completed', handleVideoCompleted);
-    socketService.on('video:failed', handleVideoFailed);
+    // Register real-time event listeners
+    socketService.on('video:uploaded', onVideoUploaded);
+    socketService.on('video:progress', onProgressUpdate);
+    socketService.on('video:completed', onProcessingComplete);
+    socketService.on('video:failed', onProcessingFailed);
 
     return () => {
-      socketService.off('video:uploaded', handleVideoUploaded);
-      socketService.off('video:progress', handleVideoProgress);
-      socketService.off('video:completed', handleVideoCompleted);
-      socketService.off('video:failed', handleVideoFailed);
+      socketService.off('video:uploaded', onVideoUploaded);
+      socketService.off('video:progress', onProgressUpdate);
+      socketService.off('video:completed', onProcessingComplete);
+      socketService.off('video:failed', onProcessingFailed);
     };
   }, []);
 
-  const fetchProcessingVideos = async () => {
+  const loadProcessingVideos = async () => {
     try {
-      setLoading(true);
-      const data = await videoService.getVideos({ status: 'processing' });
-      setProcessingVideos(data.videos);
-    } catch (error) {
-      console.error('Error fetching processing videos:', error);
+      setIsLoading(true);
+      const responseData = await videoService.getVideos({ status: 'processing' });
+      setActiveProcessing(responseData.videos);
+    } catch (fetchError) {
+      console.error('Failed to load processing queue:', fetchError);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleVideoUploaded = (data) => {
-    console.log('Video uploaded:', data);
-    fetchProcessingVideos();
+  const onVideoUploaded = (eventData) => {
+    console.log('New video uploaded:', eventData);
+    loadProcessingVideos();
   };
 
-  const handleVideoProgress = (data) => {
-    console.log('Video progress:', data);
-    setProcessingVideos(prev =>
-      prev.map(video =>
-        video._id === data.videoId
-          ? { ...video, processingProgress: data.progress }
-          : video
+  const onProgressUpdate = (eventData) => {
+    console.log('Processing progress update:', eventData);
+    setActiveProcessing(previousVideos =>
+      previousVideos.map(videoItem =>
+        videoItem._id === eventData.videoId
+          ? { ...videoItem, processingProgress: eventData.progress }
+          : videoItem
       )
     );
   };
 
-  const handleVideoCompleted = (data) => {
-    console.log('Video completed:', data);
-    setProcessingVideos(prev =>
-      prev.filter(video => video._id !== data.videoId)
+  const onProcessingComplete = (eventData) => {
+    console.log('Video processing completed:', eventData);
+    setActiveProcessing(previousVideos =>
+      previousVideos.filter(videoItem => videoItem._id !== eventData.videoId)
     );
   };
 
-  const handleVideoFailed = (data) => {
-    console.log('Video failed:', data);
-    setProcessingVideos(prev =>
-      prev.map(video =>
-        video._id === data.videoId
-          ? { ...video, status: 'failed' }
-          : video
+  const onProcessingFailed = (eventData) => {
+    console.log('Video processing failed:', eventData);
+    setActiveProcessing(previousVideos =>
+      previousVideos.map(videoItem =>
+        videoItem._id === eventData.videoId
+          ? { ...videoItem, status: 'failed' }
+          : videoItem
       )
     );
   };
@@ -76,40 +76,40 @@ const ProcessingQueue = () => {
         <h2>Processing Queue</h2>
         <div className="queue-stats">
           <span className="stat">
-            {processingVideos.length} video{processingVideos.length !== 1 ? 's' : ''} processing
+            {activeProcessing.length} video{activeProcessing.length !== 1 ? 's' : ''} processing
           </span>
         </div>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="loading">Loading...</div>
-      ) : processingVideos.length === 0 ? (
+      ) : activeProcessing.length === 0 ? (
         <div className="no-processing">
           <p>✅ No videos currently processing</p>
           <p className="subtitle">All your videos have been processed!</p>
         </div>
       ) : (
         <div className="processing-list">
-          {processingVideos.map((video) => (
-            <div key={video._id} className="processing-item">
+          {activeProcessing.map((videoItem) => (
+            <div key={videoItem._id} className="processing-item">
               <div className="item-icon">⚙️</div>
               <div className="item-info">
-                <h4>{video.metadata.title}</h4>
-                <p className="item-filename">{video.originalName}</p>
+                <h4>{videoItem.metadata.title}</h4>
+                <p className="item-filename">{videoItem.originalName}</p>
                 <div className="progress-container">
                   <div className="progress-bar-processing">
                     <div
                       className="progress-fill-processing"
-                      style={{ width: `${video.processingProgress}%` }}
+                      style={{ width: `${videoItem.processingProgress}%` }}
                     >
                       <span className="progress-text-inner">
-                        {video.processingProgress}%
+                        {videoItem.processingProgress}%
                       </span>
                     </div>
                   </div>
                 </div>
                 <div className="item-meta">
-                  <span>📁 {(video.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
+                  <span>📁 {(videoItem.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
                   <span>⏱️ Processing sensitivity analysis...</span>
                 </div>
               </div>

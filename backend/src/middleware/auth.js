@@ -1,40 +1,40 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const UserModel = require('../models/User');
 
-// Verify JWT token
-const auth = async (req, res, next) => {
+// Token verification middleware
+const authenticateUser = async (request, response, next) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const authToken = request.header('Authorization')?.replace('Bearer ', '');
     
-    if (!token) {
-      return res.status(401).json({ error: 'No authentication token provided' });
+    if (!authToken) {
+      return response.status(401).json({ error: 'Authentication token missing' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId);
+    const tokenPayload = jwt.verify(authToken, process.env.JWT_SECRET);
+    const authenticatedUser = await UserModel.findById(tokenPayload.userId);
 
-    if (!user) {
-      return res.status(401).json({ error: 'User not found' });
+    if (!authenticatedUser) {
+      return response.status(401).json({ error: 'Invalid user credentials' });
     }
 
-    req.user = user;
-    req.token = token;
+    request.user = authenticatedUser;
+    request.token = authToken;
     next();
-  } catch (error) {
-    res.status(401).json({ error: 'Please authenticate' });
+  } catch (verificationError) {
+    response.status(401).json({ error: 'Authentication required' });
   }
 };
 
-// Role-based access control
-const authorize = (...roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required' });
+// Permission-based authorization
+const requireRole = (...permittedRoles) => {
+  return (request, response, next) => {
+    if (!request.user) {
+      return response.status(401).json({ error: 'User authentication needed' });
     }
 
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ 
-        error: 'Access denied. Insufficient permissions.' 
+    if (!permittedRoles.includes(request.user.role)) {
+      return response.status(403).json({ 
+        error: 'Insufficient privileges for this action' 
       });
     }
 
@@ -42,20 +42,20 @@ const authorize = (...roles) => {
   };
 };
 
-// Multi-tenant middleware
-const checkOrganization = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Authentication required' });
+// Organization-based data filtering
+const applyOrganizationScope = (request, response, next) => {
+  if (!request.user) {
+    return response.status(401).json({ error: 'User must be authenticated' });
   }
 
-  // Admin can access all organizations
-  if (req.user.role === 'admin') {
+  // Administrators have cross-organization access
+  if (request.user.role === 'admin') {
     return next();
   }
 
-  // Other users can only access their organization
-  req.organizationFilter = { organization: req.user.organization };
+  // Standard users restricted to their organization
+  request.organizationFilter = { organization: request.user.organization };
   next();
 };
 
-module.exports = { auth, authorize, checkOrganization };
+module.exports = { auth: authenticateUser, authorize: requireRole, checkOrganization: applyOrganizationScope };

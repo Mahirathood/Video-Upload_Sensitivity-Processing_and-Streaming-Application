@@ -1,318 +1,321 @@
-const Video = require('../models/Video');
+const VideoModel = require('../models/Video');
 const { analyzeSensitivity, getVideoDuration } = require('../utils/videoProcessor');
-const fs = require('fs');
-const path = require('path');
+const fileSystem = require('fs');
+const pathModule = require('path');
 
-// Upload video
-exports.uploadVideo = async (req, res) => {
+// Handle new video upload
+exports.uploadVideo = async (request, response) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No video file provided' });
+    // Validate file presence
+    if (!request.file) {
+      return response.status(400).json({ error: 'Video file is required' });
     }
 
-    const { title, description, tags, category } = req.body;
+    const { title, description, tags, category } = request.body;
 
-    // Get video duration
-    const duration = await getVideoDuration(req.file.path);
+    // Extract video metadata
+    const videoDuration = await getVideoDuration(request.file.path);
 
-    // Create video document
-    const video = new Video({
-      filename: req.file.filename,
-      originalName: req.file.originalname,
-      filePath: req.file.path,
-      fileSize: req.file.size,
-      mimeType: req.file.mimetype,
-      duration,
-      owner: req.user._id,
-      organization: req.user.organization,
+    // Initialize video document
+    const videoDocument = new VideoModel({
+      filename: request.file.filename,
+      originalName: request.file.originalname,
+      filePath: request.file.path,
+      fileSize: request.file.size,
+      mimeType: request.file.mimetype,
+      duration: videoDuration,
+      owner: request.user._id,
+      organization: request.user.organization,
       status: 'processing',
       metadata: {
-        title: title || req.file.originalname,
+        title: title || request.file.originalname,
         description: description || '',
         tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
         category: category || 'General'
       }
     });
 
-    await video.save();
+    await videoDocument.save();
 
-    // Emit socket event for upload completion
-    if (req.app.io) {
-      req.app.io.to(req.user._id.toString()).emit('video:uploaded', {
-        videoId: video._id,
-        filename: video.originalName
+    // Notify client via WebSocket
+    if (request.app.socketIO) {
+      request.app.socketIO.to(request.user._id.toString()).emit('video:uploaded', {
+        videoId: videoDocument._id,
+        filename: videoDocument.originalName
       });
     }
 
-    // Start async processing
-    processVideo(video._id, req.app.io, req.user._id.toString());
+    // Trigger background processing
+    initiateVideoProcessing(videoDocument._id, request.app.socketIO, request.user._id.toString());
 
-    res.status(201).json({
-      message: 'Video uploaded successfully',
+    response.status(201).json({
+      message: 'Video upload successful',
       video: {
-        id: video._id,
-        filename: video.originalName,
-        status: video.status,
-        uploadedAt: video.uploadedAt
+        id: videoDocument._id,
+        filename: videoDocument.originalName,
+        status: videoDocument.status,
+        uploadedAt: videoDocument.uploadedAt
       }
     });
-  } catch (error) {
-    console.error('Upload error:', error);
+  } catch (uploadError) {
+    console.error('Video upload failed:', uploadError);
     
-    // Clean up file if upload failed
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    // Cleanup orphaned file
+    if (request.file && fileSystem.existsSync(request.file.path)) {
+      fileSystem.unlinkSync(request.file.path);
     }
     
-    res.status(500).json({ error: 'Error uploading video' });
+    response.status(500).json({ error: 'Video upload process failed' });
   }
 };
 
-// Process video (async function)
-async function processVideo(videoId, io, userId) {
+// Background video analysis workflow
+async function initiateVideoProcessing(videoIdentifier, socketInstance, userIdentifier) {
   try {
-    const video = await Video.findById(videoId);
+    const videoRecord = await VideoModel.findById(videoIdentifier);
     
-    if (!video) {
-      console.error('Video not found:', videoId);
+    if (!videoRecord) {
+      console.error('Video record not located:', videoIdentifier);
       return;
     }
 
-    // Analyze video sensitivity with progress updates
-    const result = await analyzeSensitivity(video.filePath, (progress) => {
-      // Update progress in database
-      Video.findByIdAndUpdate(videoId, { processingProgress: progress }).exec();
+    // Perform content analysis with progress tracking
+    const analysisResult = await analyzeSensitivity(videoRecord.filePath, (currentProgress) => {
+      // Persist progress to database
+      VideoModel.findByIdAndUpdate(videoIdentifier, { processingProgress: currentProgress }).exec();
       
-      // Emit progress to client
-      if (io) {
-        io.to(userId).emit('video:progress', {
-          videoId: video._id,
-          progress
+      // Broadcast progress to client
+      if (socketInstance) {
+        socketInstance.to(userIdentifier).emit('video:progress', {
+          videoId: videoRecord._id,
+          progress: currentProgress
         });
       }
     });
 
-    // Update video with results
-    video.sensitivityStatus = result.sensitivityStatus;
-    video.sensitivityScore = result.sensitivityScore;
-    video.status = 'completed';
-    video.processedAt = new Date();
-    video.processingProgress = 100;
+    // Update final analysis results
+    videoRecord.sensitivityStatus = analysisResult.sensitivityStatus;
+    videoRecord.sensitivityScore = analysisResult.sensitivityScore;
+    videoRecord.status = 'completed';
+    videoRecord.processedAt = new Date();
+    videoRecord.processingProgress = 100;
 
-    await video.save();
+    await videoRecord.save();
 
-    // Emit completion event
-    if (io) {
-      io.to(userId).emit('video:completed', {
-        videoId: video._id,
-        sensitivityStatus: result.sensitivityStatus,
-        sensitivityScore: result.sensitivityScore
+    // Notify completion via WebSocket
+    if (socketInstance) {
+      socketInstance.to(userIdentifier).emit('video:completed', {
+        videoId: videoRecord._id,
+        sensitivityStatus: analysisResult.sensitivityStatus,
+        sensitivityScore: analysisResult.sensitivityScore
       });
     }
-  } catch (error) {
-    console.error('Processing error:', error);
+  } catch (processingError) {
+    console.error('Video processing encountered error:', processingError);
     
-    // Update video status to failed
-    await Video.findByIdAndUpdate(videoId, { 
+    // Mark processing as failed
+    await VideoModel.findByIdAndUpdate(videoIdentifier, { 
       status: 'failed',
       processingProgress: 0
     });
 
-    if (io) {
-      io.to(userId).emit('video:failed', {
-        videoId: videoId,
-        error: 'Processing failed'
+    if (socketInstance) {
+      socketInstance.to(userIdentifier).emit('video:failed', {
+        videoId: videoIdentifier,
+        error: 'Analysis workflow failed'
       });
     }
   }
 }
 
-// Get all videos for current user
-exports.getVideos = async (req, res) => {
+// Retrieve user's video collection
+exports.getVideos = async (request, response) => {
   try {
-    const { status, sensitivityStatus, category, page = 1, limit = 10 } = req.query;
+    const { status, sensitivityStatus, category, page = 1, limit = 10 } = request.query;
     
-    const query = {};
+    const searchCriteria = {};
     
-    // Multi-tenant filter
-    if (req.user.role !== 'admin') {
-      query.organization = req.user.organization;
+    // Apply multi-tenancy filtering
+    if (request.user.role !== 'admin') {
+      searchCriteria.organization = request.user.organization;
       
-      // Viewers can only see their assigned videos or videos they own
-      if (req.user.role === 'viewer') {
-        query.$or = [
-          { owner: req.user._id },
-          { 'accessControl.allowedUsers': req.user._id }
+      // Restrict viewer access to authorized content
+      if (request.user.role === 'viewer') {
+        searchCriteria.$or = [
+          { owner: request.user._id },
+          { 'accessControl.allowedUsers': request.user._id }
         ];
       } else {
-        // Editors can see their organization's videos
-        query.owner = req.user._id;
+        // Editors access their own uploads
+        searchCriteria.owner = request.user._id;
       }
     }
 
-    // Apply filters
-    if (status) query.status = status;
-    if (sensitivityStatus) query.sensitivityStatus = sensitivityStatus;
-    if (category) query['metadata.category'] = category;
+    // Build dynamic filters
+    if (status) searchCriteria.status = status;
+    if (sensitivityStatus) searchCriteria.sensitivityStatus = sensitivityStatus;
+    if (category) searchCriteria['metadata.category'] = category;
 
-    const videos = await Video.find(query)
+    const videoCollection = await VideoModel.find(searchCriteria)
       .populate('owner', 'username email')
       .sort({ uploadedAt: -1 })
       .limit(parseInt(limit))
       .skip((parseInt(page) - 1) * parseInt(limit));
 
-    const total = await Video.countDocuments(query);
+    const totalCount = await VideoModel.countDocuments(searchCriteria);
 
-    res.json({
-      videos,
+    response.json({
+      videos: videoCollection,
       pagination: {
-        total,
+        total: totalCount,
         page: parseInt(page),
         limit: parseInt(limit),
-        pages: Math.ceil(total / parseInt(limit))
+        pages: Math.ceil(totalCount / parseInt(limit))
       }
     });
-  } catch (error) {
-    console.error('Get videos error:', error);
-    res.status(500).json({ error: 'Error fetching videos' });
+  } catch (fetchError) {
+    console.error('Failed to retrieve videos:', fetchError);
+    response.status(500).json({ error: 'Unable to fetch video collection' });
   }
 };
 
-// Get single video
-exports.getVideo = async (req, res) => {
+// Fetch individual video details
+exports.getVideo = async (request, response) => {
   try {
-    const video = await Video.findById(req.params.id).populate('owner', 'username email');
+    const videoRecord = await VideoModel.findById(request.params.id).populate('owner', 'username email');
 
-    if (!video) {
-      return res.status(404).json({ error: 'Video not found' });
+    if (!videoRecord) {
+      return response.status(404).json({ error: 'Video resource not found' });
     }
 
-    // Check access permissions
-    if (req.user.role !== 'admin' && 
-        video.organization !== req.user.organization) {
-      return res.status(403).json({ error: 'Access denied' });
+    // Enforce access control
+    if (request.user.role !== 'admin' && 
+        videoRecord.organization !== request.user.organization) {
+      return response.status(403).json({ error: 'Unauthorized access attempt' });
     }
 
-    res.json({ video });
-  } catch (error) {
-    console.error('Get video error:', error);
-    res.status(500).json({ error: 'Error fetching video' });
+    response.json({ video: videoRecord });
+  } catch (retrievalError) {
+    console.error('Video retrieval error:', retrievalError);
+    response.status(500).json({ error: 'Failed to load video details' });
   }
 };
 
-// Stream video
-exports.streamVideo = async (req, res) => {
+// Stream video with range support
+exports.streamVideo = async (request, response) => {
   try {
-    const video = await Video.findById(req.params.id);
+    const videoRecord = await VideoModel.findById(request.params.id);
 
-    if (!video) {
-      return res.status(404).json({ error: 'Video not found' });
+    if (!videoRecord) {
+      return response.status(404).json({ error: 'Video content not found' });
     }
 
-    // Check access permissions
-    if (req.user.role !== 'admin' && 
-        video.organization !== req.user.organization) {
-      return res.status(403).json({ error: 'Access denied' });
+    // Validate user permissions
+    if (request.user.role !== 'admin' && 
+        videoRecord.organization !== request.user.organization) {
+      return response.status(403).json({ error: 'Stream access denied' });
     }
 
-    const videoPath = video.filePath;
-    const stat = fs.statSync(videoPath);
-    const fileSize = stat.size;
-    const range = req.headers.range;
+    const videoFilePath = videoRecord.filePath;
+    const fileStats = fileSystem.statSync(videoFilePath);
+    const totalSize = fileStats.size;
+    const rangeHeader = request.headers.range;
 
-    if (range) {
-      // Handle range requests for video streaming
-      const parts = range.replace(/bytes=/, '').split('-');
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-      const chunksize = (end - start) + 1;
-      const file = fs.createReadStream(videoPath, { start, end });
-      const head = {
-        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+    if (rangeHeader) {
+      // Process byte-range streaming request
+      const rangeParts = rangeHeader.replace(/bytes=/, '').split('-');
+      const startByte = parseInt(rangeParts[0], 10);
+      const endByte = rangeParts[1] ? parseInt(rangeParts[1], 10) : totalSize - 1;
+      const chunkLength = (endByte - startByte) + 1;
+      const videoStream = fileSystem.createReadStream(videoFilePath, { start: startByte, end: endByte });
+      const streamHeaders = {
+        'Content-Range': `bytes ${startByte}-${endByte}/${totalSize}`,
         'Accept-Ranges': 'bytes',
-        'Content-Length': chunksize,
-        'Content-Type': video.mimeType,
+        'Content-Length': chunkLength,
+        'Content-Type': videoRecord.mimeType,
       };
 
-      res.writeHead(206, head);
-      file.pipe(res);
+      response.writeHead(206, streamHeaders);
+      videoStream.pipe(response);
     } else {
-      // Send entire video
-      const head = {
-        'Content-Length': fileSize,
-        'Content-Type': video.mimeType,
+      // Stream complete video file
+      const fullHeaders = {
+        'Content-Length': totalSize,
+        'Content-Type': videoRecord.mimeType,
       };
-      res.writeHead(200, head);
-      fs.createReadStream(videoPath).pipe(res);
+      response.writeHead(200, fullHeaders);
+      fileSystem.createReadStream(videoFilePath).pipe(response);
     }
-  } catch (error) {
-    console.error('Stream video error:', error);
-    res.status(500).json({ error: 'Error streaming video' });
+  } catch (streamError) {
+    console.error('Video streaming failed:', streamError);
+    response.status(500).json({ error: 'Unable to stream video content' });
   }
 };
 
-// Delete video
-exports.deleteVideo = async (req, res) => {
+// Remove video and associated file
+exports.deleteVideo = async (request, response) => {
   try {
-    const video = await Video.findById(req.params.id);
+    const videoRecord = await VideoModel.findById(request.params.id);
 
-    if (!video) {
-      return res.status(404).json({ error: 'Video not found' });
+    if (!videoRecord) {
+      return response.status(404).json({ error: 'Video not found for deletion' });
     }
 
-    // Only owner or admin can delete
-    if (req.user.role !== 'admin' && 
-        video.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ error: 'Access denied' });
+    // Verify deletion permissions
+    if (request.user.role !== 'admin' && 
+        videoRecord.owner.toString() !== request.user._id.toString()) {
+      return response.status(403).json({ error: 'Deletion not authorized' });
     }
 
-    // Delete file from filesystem
-    if (fs.existsSync(video.filePath)) {
-      fs.unlinkSync(video.filePath);
+    // Remove physical file from storage
+    if (fileSystem.existsSync(videoRecord.filePath)) {
+      fileSystem.unlinkSync(videoRecord.filePath);
     }
 
-    await Video.findByIdAndDelete(req.params.id);
+    await VideoModel.findByIdAndDelete(request.params.id);
 
-    res.json({ message: 'Video deleted successfully' });
-  } catch (error) {
-    console.error('Delete video error:', error);
-    res.status(500).json({ error: 'Error deleting video' });
+    response.json({ message: 'Video successfully removed' });
+  } catch (deletionError) {
+    console.error('Video deletion failed:', deletionError);
+    response.status(500).json({ error: 'Unable to delete video' });
   }
 };
 
-// Update video metadata
-exports.updateVideo = async (req, res) => {
+// Modify video metadata
+exports.updateVideo = async (request, response) => {
   try {
-    const video = await Video.findById(req.params.id);
+    const videoRecord = await VideoModel.findById(request.params.id);
 
-    if (!video) {
-      return res.status(404).json({ error: 'Video not found' });
+    if (!videoRecord) {
+      return response.status(404).json({ error: 'Video not available for update' });
     }
 
-    // Only owner, editor, or admin can update
-    if (req.user.role === 'viewer') {
-      return res.status(403).json({ error: 'Access denied' });
+    // Restrict viewer modifications
+    if (request.user.role === 'viewer') {
+      return response.status(403).json({ error: 'Viewers cannot modify content' });
     }
 
-    if (req.user.role !== 'admin' && 
-        video.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ error: 'Access denied' });
+    // Verify ownership for non-admins
+    if (request.user.role !== 'admin' && 
+        videoRecord.owner.toString() !== request.user._id.toString()) {
+      return response.status(403).json({ error: 'Update permission denied' });
     }
 
-    const { title, description, tags, category } = req.body;
+    const { title, description, tags, category } = request.body;
 
-    if (title) video.metadata.title = title;
-    if (description) video.metadata.description = description;
-    if (tags) video.metadata.tags = tags.split(',').map(tag => tag.trim());
-    if (category) video.metadata.category = category;
+    // Apply metadata updates
+    if (title) videoRecord.metadata.title = title;
+    if (description) videoRecord.metadata.description = description;
+    if (tags) videoRecord.metadata.tags = tags.split(',').map(tag => tag.trim());
+    if (category) videoRecord.metadata.category = category;
 
-    await video.save();
+    await videoRecord.save();
 
-    res.json({ message: 'Video updated successfully', video });
-  } catch (error) {
-    console.error('Update video error:', error);
-    res.status(500).json({ error: 'Error updating video' });
+    response.json({ message: 'Video metadata updated successfully', video: videoRecord });
+  } catch (updateError) {
+    console.error('Video update operation failed:', updateError);
+    response.status(500).json({ error: 'Failed to update video information' });
   }
 };
 
-module.exports.processVideo = processVideo;
+module.exports.initiateVideoProcessing = initiateVideoProcessing;

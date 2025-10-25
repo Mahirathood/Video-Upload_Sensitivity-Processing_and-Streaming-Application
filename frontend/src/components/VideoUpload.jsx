@@ -3,82 +3,82 @@ import { videoService } from '../services/videoService';
 import './VideoUpload.css';
 
 const VideoUpload = () => {
-  const [file, setFile] = useState(null);
-  const [metadata, setMetadata] = useState({
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [videoMetadata, setVideoMetadata] = useState({
     title: '',
     description: '',
     tags: '',
     category: 'General'
   });
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploading, setUploading] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
+  const [progressPercentage, setProgressPercentage] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState({ type: '', text: '' });
 
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      if (!metadata.title) {
-        setMetadata({ ...metadata, title: selectedFile.name });
+  const handleFileSelection = (event) => {
+    const chosenFile = event.target.files[0];
+    if (chosenFile) {
+      setSelectedFile(chosenFile);
+      if (!videoMetadata.title) {
+        setVideoMetadata({ ...videoMetadata, title: chosenFile.name });
       }
     }
   };
 
-  const handleMetadataChange = (e) => {
-    setMetadata({
-      ...metadata,
-      [e.target.name]: e.target.value
+  const handleMetadataInput = (event) => {
+    setVideoMetadata({
+      ...videoMetadata,
+      [event.target.name]: event.target.value
     });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleFormSubmission = async (event) => {
+    event.preventDefault();
     
-    if (!file) {
-      setMessage({ type: 'error', text: 'Please select a video file' });
+    if (!selectedFile) {
+      setNotificationMessage({ type: 'error', text: 'Video file selection is required' });
       return;
     }
 
-    setUploading(true);
-    setMessage({ type: '', text: '' });
+    setIsUploading(true);
+    setNotificationMessage({ type: '', text: '' });
 
     try {
-      const formData = new FormData();
-      formData.append('video', file);
-      formData.append('title', metadata.title);
-      formData.append('description', metadata.description);
-      formData.append('tags', metadata.tags);
-      formData.append('category', metadata.category);
+      const uploadData = new FormData();
+      uploadData.append('video', selectedFile);
+      uploadData.append('title', videoMetadata.title);
+      uploadData.append('description', videoMetadata.description);
+      uploadData.append('tags', videoMetadata.tags);
+      uploadData.append('category', videoMetadata.category);
 
-      await videoService.uploadVideo(formData, (progress) => {
-        setUploadProgress(progress);
+      await videoService.uploadVideo(uploadData, (currentProgress) => {
+        setProgressPercentage(currentProgress);
       });
 
-      setMessage({ 
+      setNotificationMessage({ 
         type: 'success', 
-        text: 'Video uploaded successfully! Processing will begin shortly.' 
+        text: 'Upload completed! Video processing will start momentarily.' 
       });
       
-      // Reset form
-      setFile(null);
-      setMetadata({
+      // Clear form data
+      setSelectedFile(null);
+      setVideoMetadata({
         title: '',
         description: '',
         tags: '',
         category: 'General'
       });
-      setUploadProgress(0);
+      setProgressPercentage(0);
       
-      // Reset file input
-      const fileInput = document.querySelector('input[type="file"]');
-      if (fileInput) fileInput.value = '';
-    } catch (error) {
-      setMessage({ 
+      // Reset file input field
+      const fileInputElement = document.querySelector('input[type="file"]');
+      if (fileInputElement) fileInputElement.value = '';
+    } catch (uploadError) {
+      setNotificationMessage({ 
         type: 'error', 
-        text: error.response?.data?.error || 'Upload failed. Please try again.' 
+        text: uploadError.response?.data?.error || 'Upload operation failed. Please retry.' 
       });
     } finally {
-      setUploading(false);
+      setIsUploading(false);
     }
   };
 
@@ -86,25 +86,25 @@ const VideoUpload = () => {
     <div className="video-upload">
       <h2>Upload Video</h2>
       
-      {message.text && (
-        <div className={`message ${message.type}`}>
-          {message.text}
+      {notificationMessage.text && (
+        <div className={`message ${notificationMessage.type}`}>
+          {notificationMessage.text}
         </div>
       )}
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleFormSubmission}>
         <div className="form-group">
           <label htmlFor="video-file">Video File *</label>
           <input
             type="file"
             id="video-file"
             accept="video/*"
-            onChange={handleFileChange}
-            disabled={uploading}
+            onChange={handleFileSelection}
+            disabled={isUploading}
           />
-          {file && (
+          {selectedFile && (
             <p className="file-info">
-              Selected: {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+              Selected: {selectedFile.name} ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)
             </p>
           )}
         </div>
@@ -115,10 +115,10 @@ const VideoUpload = () => {
             type="text"
             id="title"
             name="title"
-            value={metadata.title}
-            onChange={handleMetadataChange}
+            value={videoMetadata.title}
+            onChange={handleMetadataInput}
             required
-            disabled={uploading}
+            disabled={isUploading}
           />
         </div>
 
@@ -127,10 +127,10 @@ const VideoUpload = () => {
           <textarea
             id="description"
             name="description"
-            value={metadata.description}
-            onChange={handleMetadataChange}
+            value={videoMetadata.description}
+            onChange={handleMetadataInput}
             rows="4"
-            disabled={uploading}
+            disabled={isUploading}
           />
         </div>
 
@@ -140,10 +140,10 @@ const VideoUpload = () => {
             type="text"
             id="tags"
             name="tags"
-            value={metadata.tags}
-            onChange={handleMetadataChange}
+            value={videoMetadata.tags}
+            onChange={handleMetadataInput}
             placeholder="e.g., tutorial, coding, react"
-            disabled={uploading}
+            disabled={isUploading}
           />
         </div>
 
@@ -152,9 +152,9 @@ const VideoUpload = () => {
           <select
             id="category"
             name="category"
-            value={metadata.category}
-            onChange={handleMetadataChange}
-            disabled={uploading}
+            value={videoMetadata.category}
+            onChange={handleMetadataInput}
+            disabled={isUploading}
           >
             <option value="General">General</option>
             <option value="Education">Education</option>
@@ -165,24 +165,24 @@ const VideoUpload = () => {
           </select>
         </div>
 
-        {uploading && (
+        {isUploading && (
           <div className="upload-progress">
             <div className="progress-bar">
               <div 
                 className="progress-fill" 
-                style={{ width: `${uploadProgress}%` }}
+                style={{ width: `${progressPercentage}%` }}
               />
             </div>
-            <p className="progress-text">Uploading: {uploadProgress}%</p>
+            <p className="progress-text">Uploading: {progressPercentage}%</p>
           </div>
         )}
 
         <button 
           type="submit" 
           className="btn-primary" 
-          disabled={uploading || !file}
+          disabled={isUploading || !selectedFile}
         >
-          {uploading ? 'Uploading...' : 'Upload Video'}
+          {isUploading ? 'Uploading...' : 'Upload Video'}
         </button>
       </form>
     </div>

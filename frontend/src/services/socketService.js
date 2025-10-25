@@ -1,69 +1,69 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+const WEBSOCKET_ENDPOINT = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
-class SocketService {
+class WebSocketManager {
   constructor() {
-    this.socket = null;
+    this.socketConnection = null;
   }
 
   connect() {
-    const token = localStorage.getItem('token');
+    const authenticationToken = localStorage.getItem('token');
     
-    if (!token) {
-      console.error('No token available for socket connection');
+    if (!authenticationToken) {
+      console.error('Authentication token not found for WebSocket');
       return;
     }
 
-    this.socket = io(SOCKET_URL, {
+    this.socketConnection = io(WEBSOCKET_ENDPOINT, {
       auth: {
-        token
+        token: authenticationToken
       }
     });
 
-    this.socket.on('connect', () => {
-      console.log('Socket connected');
+    this.socketConnection.on('connect', () => {
+      console.log('WebSocket connection established');
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Socket disconnected');
+    this.socketConnection.on('disconnect', () => {
+      console.log('WebSocket connection terminated');
     });
 
-    this.socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
+    this.socketConnection.on('connect_error', (connectionError) => {
+      console.error('WebSocket connection failed:', connectionError);
     });
 
-    return this.socket;
+    return this.socketConnection;
   }
 
   disconnect() {
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
+    if (this.socketConnection) {
+      this.socketConnection.disconnect();
+      this.socketConnection = null;
     }
   }
 
-  on(event, callback) {
-    if (this.socket) {
-      this.socket.on(event, callback);
+  on(eventName, eventHandler) {
+    if (this.socketConnection) {
+      this.socketConnection.on(eventName, eventHandler);
     }
   }
 
-  off(event, callback) {
-    if (this.socket) {
-      this.socket.off(event, callback);
+  off(eventName, eventHandler) {
+    if (this.socketConnection) {
+      this.socketConnection.off(eventName, eventHandler);
     }
   }
 
-  emit(event, data) {
-    if (this.socket) {
-      this.socket.emit(event, data);
+  emit(eventName, eventData) {
+    if (this.socketConnection) {
+      this.socketConnection.emit(eventName, eventData);
     }
   }
 
   isConnected() {
-    return this.socket && this.socket.connected;
+    return this.socketConnection && this.socketConnection.connected;
   }
 }
 
-export default new SocketService();
+export default new WebSocketManager();
