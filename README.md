@@ -4,7 +4,6 @@ A full-stack video upload, processing, and streaming application with real-time 
 
 **Frontend:** https://video-upload-sensitivity-processing.vercel.app
 **Backend API:** https://video-streaming-backend-7vwr.onrender.com/api/health
->>>>>>> cd6c3a0ad6145550fa3f731162c8b1de2085636a
 
 ## Features
 
