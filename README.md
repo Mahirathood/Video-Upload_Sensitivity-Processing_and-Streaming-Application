@@ -2,7 +2,7 @@
 
 A full-stack video upload, processing, and streaming application with real-time updates and role-based access control.
 
-**Frontend:** https://68fc218b9d3a1c76a9267ce5--genuine-crumble-5d7df2.netlify.app/
+**Frontend:** https://video-upload-sensitivity-processing.vercel.app
 **Backend API:** https://video-streaming-backend-7vwr.onrender.com/api/health
 >>>>>>> cd6c3a0ad6145550fa3f731162c8b1de2085636a
 ## Live Demo
@@ -11,7 +11,7 @@ A full-stack video upload, processing, and streaming application with real-time 
 **Backend API:** https://video-streaming-backend-7vwr.onrender.com/api/health  
 **GitHub:** https://github.com/Mahirathood/Video-Upload_Sensitivity-Processing_and-Streaming-Application
 =======
-**Frontend:** https://68fc218b9d3a1c76a9267ce5--genuine-crumble-5d7df2.netlify.app/
+**Frontend:** https://video-upload-sensitivity-processing.vercel.app
 **Backend API:** https://video-streaming-backend-7vwr.onrender.com/api/health
 >>>>>>> cd6c3a0ad6145550fa3f731162c8b1de2085636a
 
